@@ -1,0 +1,60 @@
+# name: test/sql/products.test
+# description: schwab.products — base table: typed schema (network-free) + live catalog invariants.
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+ATTACH 'schwab' AS sch (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+
+statement ok
+SET search_path='sch.main';
+
+# --- Schema: DESCRIBE binds only (no network), so these are fully deterministic. ---
+# `products` is a base TABLE — query it with no parentheses.
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM sch.products) WHERE column_name = 'ticker';
+----
+VARCHAR
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM sch.products) WHERE column_name = 'net_assets';
+----
+DOUBLE
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM sch.products) WHERE column_name = 'inception_date';
+----
+DATE
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM sch.products) WHERE column_name = 'expense_ratio_percent';
+----
+DOUBLE
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM sch.products) WHERE column_name = 'num_holdings';
+----
+BIGINT
+
+# --- Live invariants: these hit Schwab (through the impersonation transport). Assert shape, not
+# --- exact (moving) values.
+
+# The catalog has the Schwab ETF lineup; filter with WHERE.
+query I
+SELECT (count(*) > 10)::INT FROM sch.products;
+----
+1
+
+# SCHD (U.S. Dividend Equity ETF) is present with a non-negative expense ratio.
+query I
+SELECT (count(*) = 1)::INT FROM sch.products WHERE ticker = 'SCHD' AND expense_ratio_percent >= 0;
+----
+1
+
+# Fund names are populated for the lineup (from each fund's product page).
+query I
+SELECT (count(*) >= 1)::INT FROM sch.products WHERE fund_name IS NOT NULL;
+----
+1

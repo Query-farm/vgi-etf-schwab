@@ -1,0 +1,77 @@
+[project]
+name = "vgi-etf-schwab"
+version = "0.1.0"
+description = "Schwab Asset Management US ETF data (catalog + holdings) as DuckDB tables over VGI, in-process via curl_cffi"
+readme = "README.md"
+keywords = ["duckdb", "vgi", "etf", "schwab", "holdings", "apache-arrow", "pyarrow", "finance"]
+license = { file = "LICENSE" }
+authors = [{ name = "Query Farm LLC", email = "hello@query.farm" }]
+requires-python = ">=3.13"
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Database",
+]
+dependencies = [
+    "vgi-python>=0.13.0",
+    "curl-cffi>=0.7",
+    "pyarrow>=17",
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy",
+    "pyarrow-stubs",
+    "pytest",
+    "pytest-xdist",
+    "ruff",
+]
+
+[project.scripts]
+vgi-etf-schwab-worker = "vgi_etf_schwab.worker:main"
+
+[project.urls]
+Repository = "https://github.com/Query-farm/vgi-etf-schwab"
+Issues = "https://github.com/Query-farm/vgi-etf-schwab/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["vgi_etf_schwab"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests don't need the docstring family.
+"tests/*" = ["D"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "curl_cffi.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
