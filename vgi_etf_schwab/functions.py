@@ -4,9 +4,12 @@ Both are built by factories that close over an injected ``get(url) -> str`` tran
 the worker wires the real ``curl_cffi`` client and the unit tests wire a fake (mirroring
 how the pure driver is injected). All keyless.
 
-* ``products_scan`` — a zero-arg, single-worker, one-shot scan returning the full Schwab
-  US ETF lineup. It backs the ``products`` table (registered for scan dispatch, but NOT
-  listed as a callable function — users query the table).
+* ``products_scan`` — a zero-arg, streaming, queue-backed scan of the Schwab US ETF lineup.
+  ``on_init`` seeds a BoundStorage queue with the sitemap universe; ``process`` pops one
+  ticker per tick, fetches that fund's product page, and emits its row — so the first row is
+  prompt and ``max_workers`` parallel workers fan out the per-fund fetches. It backs the
+  ``products`` table (registered for scan dispatch, but NOT listed as a callable function —
+  users query the table).
 * ``holdings_scan`` — a streaming, queue-backed, HIVE-PARTITIONED scan (one
   SINGLE_VALUE partition per fund, keyed on ``fund_ticker``). ``on_init`` reads the
   pushed ``fund_ticker`` filter — or, absent one, the entire ETF universe from the
@@ -30,9 +33,7 @@ from vgi.table_function import (
     ProcessParams,
     TableFunctionGenerator,
     bind_fixed_schema,
-    init_single_worker,
 )
-from vgi_rpc import ArrowSerializableDataclass
 from vgi_rpc.rpc import OutputCollector
 
 from vgi_etf_schwab.client import Getter
@@ -43,24 +44,25 @@ from vgi_etf_schwab.schema import (
     products_columns,
     result_columns_schema,
 )
-from vgi_etf_schwab.schwab import fetch_holdings, fetch_products, fetch_universe
+from vgi_etf_schwab.schwab import (
+    fetch_holdings,
+    fetch_universe,
+    parse_product,
+    product_page_url,
+)
 
 #: Fan-out cap for the parallel holdings scan. Kept modest to stay gentle on Akamai
 #: (a burst of parallel requests can draw a 403). A single-fund filter has one queue
 #: item, so it runs on one worker regardless.
 HOLDINGS_MAX_WORKERS = 4
 
+#: Fan-out cap for the parallel products scan (per-fund product-page fetches).
+PRODUCTS_MAX_WORKERS = 8
+
 
 @dataclass(frozen=True, slots=True)
 class _EmptyArgs:
     """No arguments — ``products`` and ``holdings`` are zero-arg base tables."""
-
-
-@dataclass(kw_only=True)
-class _OneShotState(ArrowSerializableDataclass):
-    """State for a single-shot snapshot scan: a ``done`` flag (fully serializable)."""
-
-    done: bool = False
 
 
 # -- holdings_scan metadata (vgi.* doc/discovery channels vgi-lint grades) ---------
@@ -97,36 +99,54 @@ _HOLDINGS_SCAN_TAGS = {
 }
 
 
-def make_products_scan(get: Getter) -> type[TableFunctionGenerator[_EmptyArgs, _OneShotState]]:
-    """Build the zero-arg scan backing the ``products`` base table (closes over ``get``)."""
+def make_products_scan(get: Getter) -> type[TableFunctionGenerator[_EmptyArgs, None]]:
+    """Build the streaming, queue-backed scan behind the ``products`` base table.
 
-    @init_single_worker
+    Mirrors the holdings scan: ``on_init`` seeds a BoundStorage work queue with the sitemap
+    universe (one item per candidate ticker); ``process`` pops one ticker per tick, fetches
+    that fund's product page, and emits its row. So the FIRST row is emitted promptly (no
+    fetch-everything-then-emit stall — an agent's ``LIMIT``/cancel works), and ``max_workers``
+    parallel workers fan out the per-fund page fetches (the whole ~35-page catalog is drained
+    concurrently instead of serially). A non-ETF slug (no fund-facts table) or a failed fetch
+    is skipped, never fatal.
+    """
+
     @bind_fixed_schema
-    class ProductsScan(TableFunctionGenerator[_EmptyArgs, _OneShotState]):
-        """Schwab US ETF catalog — the backing scan for the ``products`` table."""
+    class ProductsScan(TableFunctionGenerator[_EmptyArgs, None]):
+        """Schwab US ETF catalog — the streaming backing scan for the ``products`` table."""
 
         FIXED_SCHEMA: ClassVar[pa.Schema] = PRODUCTS_SCHEMA
 
         class Meta:
-            """Function metadata for the products backing scan."""
+            """Function metadata: parallel per-fund fan-out over the sitemap universe."""
 
             name = "products_scan"
             description = "Schwab US ETF catalog — backing scan for the products table."
+            max_workers = PRODUCTS_MAX_WORKERS
 
         @classmethod
-        def initial_state(cls, params: ProcessParams[_EmptyArgs]) -> _OneShotState:
-            """Start a fresh single-shot cursor."""
-            return _OneShotState()
+        def on_init(cls, params: InitParams[_EmptyArgs]) -> GlobalInitResponse:
+            """Seed the work queue with the candidate ETF universe from the sitemap."""
+            params.storage.queue_push([t.encode("utf-8") for t in fetch_universe(get)])
+            return GlobalInitResponse(max_workers=PRODUCTS_MAX_WORKERS)
 
         @classmethod
-        def process(cls, params: ProcessParams[_EmptyArgs], state: _OneShotState, out: OutputCollector) -> None:
-            """Fetch and emit the full ETF lineup once, then finish."""
-            if state.done:
-                out.finish()
+        def process(cls, params: ProcessParams[_EmptyArgs], state: None, out: OutputCollector) -> None:
+            """Pop one ticker per tick, emit that fund's row; skip non-ETF slugs / failed fetches."""
+            while True:
+                item = params.storage.queue_pop()
+                if item is None:
+                    out.finish()
+                    return
+                ticker = item.decode("utf-8")
+                try:
+                    row = parse_product(str(get(product_page_url(ticker))), ticker)
+                except Exception:
+                    row = None
+                if row is None or row.cusip is None:
+                    continue  # a non-ETF slug (no fund-facts table) or a failed fetch
+                out.emit(pa.RecordBatch.from_pydict(products_columns([row]), schema=cls.FIXED_SCHEMA))
                 return
-            state.done = True
-            rows = fetch_products(get)
-            out.emit(pa.RecordBatch.from_pydict(products_columns(rows), schema=params.output_schema))
 
     return ProductsScan
 
