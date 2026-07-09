@@ -51,6 +51,30 @@ SELECT fund_ticker, name, weight_percent FROM schwab.main.holdings WHERE fund_ti
 (`0.06` = 0.06%, `4.49` = 4.49%). `market_value` is abbreviated on Schwab's page (`$4.4B`), so it
 is approximate.
 
+## Run as a container
+
+A multi-arch (linux/amd64 + linux/arm64), cosign-signed image is published to
+`ghcr.io/query-farm/vgi-etf-schwab` on every release — no local Python or `uv` needed. Attach it
+directly over the VGI container transport:
+
+```sql
+LOAD vgi;
+ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'oci://ghcr.io/query-farm/vgi-etf-schwab:latest');
+```
+
+Or run the HTTP transport yourself and attach that:
+
+```bash
+docker run --rm -p 8000:8000 ghcr.io/query-farm/vgi-etf-schwab:latest   # serves /health + the VGI RPC on :8000
+```
+
+```sql
+LOAD vgi;
+ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'http://localhost:8000');
+```
+
+`:latest` always tracks the newest release.
+
 ## Development
 
 ```bash
