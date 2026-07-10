@@ -12,20 +12,23 @@ how the pure driver is injected). All keyless.
   users query the table).
 * ``holdings_scan`` — a streaming, queue-backed, HIVE-PARTITIONED scan (one
   SINGLE_VALUE partition per fund, keyed on ``fund_ticker``). ``on_init`` reads the
-  pushed ``fund_ticker`` filter — or, absent one, the entire ETF universe from the
-  sitemap — and seeds a :class:`~vgi.function_storage.BoundStorage` work queue with one
-  item per fund; ``process`` pops one fund per tick, fetches its holdings, and emits a
-  single partition batch. ``filter_pushdown`` + being LISTED is what lets DuckDB push the
-  ``fund_ticker`` filter into the scan. Schwab publishes CURRENT holdings only, so there
-  is NO time travel.
+  optional ``fund_ticker`` argument, else the pushed ``fund_ticker`` filter, else the
+  entire ETF universe from the sitemap — and seeds a
+  :class:`~vgi.function_storage.BoundStorage` work queue with one item per fund;
+  ``process`` pops one fund per tick, fetches its holdings, and emits a single partition
+  batch. ``filter_pushdown`` + being LISTED is what lets DuckDB push the ``fund_ticker``
+  filter into the scan (the ``holdings`` table's path); the ``fund_ticker`` argument is
+  the equivalent direct-call form (``holdings_scan(fund_ticker => 'SCHD')``). Schwab
+  publishes CURRENT holdings only, so there is NO time travel.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import Annotated, ClassVar
 
 import pyarrow as pa
+from vgi.arguments import Arg
 from vgi.invocation import GlobalInitResponse
 from vgi.metadata import FunctionExample, PartitionKind
 from vgi.table_function import (
@@ -62,7 +65,31 @@ PRODUCTS_MAX_WORKERS = 8
 
 @dataclass(frozen=True, slots=True)
 class _EmptyArgs:
-    """No arguments — ``products`` and ``holdings`` are zero-arg base tables."""
+    """No arguments — ``products`` is a zero-arg base table."""
+
+
+@dataclass(frozen=True, slots=True)
+class _HoldingsArgs:
+    """Arguments for the holdings scan.
+
+    ``fund_ticker`` is optional: omit it (the ``holdings`` table's path — the fund filter
+    arrives via pushdown) to stream every fund, or pass one fund's exchange ticker to fetch
+    just that fund directly. It is any current Schwab ETF ticker (e.g. ``SCHD``), not a fixed
+    vocabulary — the lineup changes as funds launch or close.
+    """
+
+    fund_ticker: Annotated[
+        str | None,
+        Arg(
+            "fund_ticker",
+            arrow_type=pa.string(),
+            default=None,
+            doc=(
+                "One fund's exchange ticker (e.g. SCHD) to fetch a single fund; omit to stream "
+                "every Schwab ETF. Any current Schwab ETF ticker works — not a fixed vocabulary."
+            ),
+        ),
+    ] = None
 
 
 # -- holdings_scan metadata (vgi.* doc/discovery channels vgi-lint grades) ---------
@@ -73,7 +100,7 @@ _HOLDINGS_SCAN_DESCS = {
     "weight_percent": "Percent of the fund's assets, in percent points (4.49 = 4.49%).",
     "ticker": "Constituent ticker / symbol (blank for cash and derivative lines).",
     "name": "Constituent / issue name.",
-    "cusip": "Constituent CUSIP.",
+    "cusip": "Constituent CUSIP (empty string for cash / derivative lines that have none).",
     "quantity": "Number of shares / units / par held.",
     "market_value": "Market value of the position, in USD (abbreviated on the page, so approximate).",
 }
@@ -83,16 +110,18 @@ _HOLDINGS_SCAN_TAGS = {
     "vgi.doc_llm": (
         "The backing scan for the `holdings` table. Prefer querying the `holdings` table. "
         "Hive-partitioned by fund_ticker (the fund's ticker, distinct from the constituent "
-        "`ticker` column): filter WHERE fund_ticker = '…' (or fund_ticker IN (…)) for specific "
-        "funds, or scan with no filter to stream every fund (~35 partitions — slow). "
+        "`ticker` column). Pass a fund's ticker as the argument — holdings_scan(fund_ticker => "
+        "'SCHD') — for one fund, or omit it and filter WHERE fund_ticker = '…' (or IN (…)) so the "
+        "filter is pushed down; with neither it streams every fund (~35 partitions — slow). "
         "weight_percent is in percent points (4.49 = 4.49%). Schwab publishes current holdings "
         "only, so there is no historical as-of date."
     ),
     "vgi.doc_md": (
         "## holdings_scan\n\n"
         "The backing scan for the **`holdings` table** — prefer the table. Hive-partitioned by "
-        "`fund_ticker`: filter `WHERE fund_ticker = 'SCHD'` for one fund, or scan with no filter "
-        "to stream every fund (see the example queries). `fund_ticker` is distinct from the "
+        "`fund_ticker`: pass a fund's ticker as the argument (`holdings_scan(fund_ticker => "
+        "'SCHD')`) for one fund, or omit it and filter `WHERE fund_ticker = 'SCHD'` so the "
+        "filter is pushed down (see the example queries). `fund_ticker` is distinct from the "
         "constituent `ticker` column."
     ),
     "vgi.result_columns_schema": result_columns_schema(HOLDINGS_SCHEMA, _HOLDINGS_SCAN_DESCS),
@@ -151,15 +180,17 @@ def make_products_scan(get: Getter) -> type[TableFunctionGenerator[_EmptyArgs, N
     return ProductsScan
 
 
-def make_holdings_scan(get: Getter) -> type[TableFunctionGenerator[_EmptyArgs, None]]:
+def make_holdings_scan(get: Getter) -> type[TableFunctionGenerator[_HoldingsArgs, None]]:
     """Build the hive-partitioned, queue-backed scan backing the ``holdings`` table."""
 
     @bind_fixed_schema
-    class HoldingsScan(TableFunctionGenerator[_EmptyArgs, None]):
+    class HoldingsScan(TableFunctionGenerator[_HoldingsArgs, None]):
         """Detailed fund holdings, hive-partitioned by ``fund_ticker`` (one partition per fund).
 
-        Prefer querying the ``holdings`` table. Filter ``WHERE fund_ticker = 'SCHD'`` (or
-        ``fund_ticker IN (…)``) for specific funds, or scan with no filter to stream every
+        Prefer querying the ``holdings`` table. Pass one fund's ticker as the ``fund_ticker``
+        argument (``holdings_scan(fund_ticker => 'SCHD')``) to fetch a single fund directly, or omit it and
+        filter ``WHERE fund_ticker = 'SCHD'`` (or ``fund_ticker IN (…)``) so the extension
+        pushes the filter in — the ``holdings`` table's path. With neither, it streams every
         fund's holdings. ``weight_percent`` is in percent points; Schwab publishes current
         holdings only.
         """
@@ -172,9 +203,10 @@ def make_holdings_scan(get: Getter) -> type[TableFunctionGenerator[_EmptyArgs, N
             name = "holdings_scan"
             description = (
                 "Backing scan for the holdings table — prefer the `holdings` table. Detailed fund "
-                "holdings, hive-partitioned by fund_ticker: filter WHERE fund_ticker = 'SCHD' (or "
-                "fund_ticker IN (…)) for specific funds, or scan with no filter to stream every "
-                "fund's holdings. weight_percent is in percent points; Schwab publishes current "
+                "holdings, hive-partitioned by fund_ticker. Pass a fund's ticker as the fund_ticker "
+                "argument (holdings_scan(fund_ticker => 'SCHD')) for one fund, or omit it and filter WHERE "
+                "fund_ticker = 'SCHD' (or IN (…)) so the filter is pushed down; with neither it "
+                "streams every fund. weight_percent is in percent points; Schwab publishes current "
                 "holdings only."
             )
             categories = ["holdings"]
@@ -184,10 +216,17 @@ def make_holdings_scan(get: Getter) -> type[TableFunctionGenerator[_EmptyArgs, N
             examples = [
                 FunctionExample(
                     sql=(
+                        "SELECT name, weight_percent FROM schwab.main.holdings_scan(fund_ticker => 'SCHD') "
+                        "ORDER BY weight_percent DESC LIMIT 10"
+                    ),
+                    description="Top 10 holdings of SCHD, passing the fund ticker as the argument",
+                ),
+                FunctionExample(
+                    sql=(
                         "SELECT name, weight_percent FROM schwab.main.holdings_scan() "
                         "WHERE fund_ticker = 'SCHD' ORDER BY weight_percent DESC LIMIT 10"
                     ),
-                    description="Top 10 holdings of SCHD via the backing scan",
+                    description="Same, via a pushed-down fund_ticker filter (no argument)",
                 ),
                 FunctionExample(
                     sql=(
@@ -200,23 +239,31 @@ def make_holdings_scan(get: Getter) -> type[TableFunctionGenerator[_EmptyArgs, N
             tags = _HOLDINGS_SCAN_TAGS
 
         @classmethod
-        def on_init(cls, params: InitParams[_EmptyArgs]) -> GlobalInitResponse:
-            """Seed the work queue with the target funds: the pushed filter, else the whole universe."""
-            pf = params.init_call.pushdown_filters
-            jk = params.init_call.join_keys
-            filters = cls.pushdown_filters(pf, join_keys=jk) if pf is not None else None
+        def on_init(cls, params: InitParams[_HoldingsArgs]) -> GlobalInitResponse:
+            """Seed the work queue with the target funds: the explicit arg, else the pushed filter, else all.
+
+            An explicit ``fund_ticker`` argument (``holdings_scan(fund_ticker => 'SCHD')``) wins; otherwise the
+            ``fund_ticker`` equality/IN filter pushed into the scan is used; with neither, the
+            whole ETF universe from the sitemap.
+            """
             requested: list[str] = []
-            if filters is not None:
-                values = filters.get_column_values("fund_ticker")
-                if values is not None:
-                    requested = [str(v).upper() for v in values.to_pylist() if v is not None]
-            # De-dup (order-preserving) when a filter was pushed; else the whole universe.
+            if params.args.fund_ticker is not None:
+                requested = [params.args.fund_ticker.upper()]
+            else:
+                pf = params.init_call.pushdown_filters
+                jk = params.init_call.join_keys
+                filters = cls.pushdown_filters(pf, join_keys=jk) if pf is not None else None
+                if filters is not None:
+                    values = filters.get_column_values("fund_ticker")
+                    if values is not None:
+                        requested = [str(v).upper() for v in values.to_pylist() if v is not None]
+            # De-dup (order-preserving) when funds were requested; else the whole universe.
             targets = list(dict.fromkeys(requested)) if requested else fetch_universe(get)
             params.storage.queue_push([t.encode("utf-8") for t in targets])
             return GlobalInitResponse(max_workers=HOLDINGS_MAX_WORKERS)
 
         @classmethod
-        def process(cls, params: ProcessParams[_EmptyArgs], state: None, out: OutputCollector) -> None:
+        def process(cls, params: ProcessParams[_HoldingsArgs], state: None, out: OutputCollector) -> None:
             """Pop one fund per tick, emit its holdings as a single partition; skip empty funds."""
             while True:
                 item = params.storage.queue_pop()

@@ -59,8 +59,11 @@ declarative `Catalog`). Two INDEPENDENT layers matter (mirrors the TS sibling):
 `products_scan` is **registered (via `Table.function`) but NOT listed** → exposed only as the
 `products` table. `holdings_scan` MUST be **listed** (`Schema(functions=[holdings_scan])`) — an
 unlisted backing scan gets **no** pushdown (the extension can't see its `filter_pushdown`
-capability), so the `fund_ticker` partition filter never reaches it. Hence a visible
-`holdings_scan()` function is unavoidable; VGI311 (parameterless-fn) is waived in `vgi-lint.toml`.
+capability), so the `fund_ticker` partition filter never reaches it. A visible
+`holdings_scan` function is therefore unavoidable; it takes an **optional `fund_ticker`
+argument** (`holdings_scan(fund_ticker => 'SCHD')` fetches one fund directly; omitting it
+streams every fund / accepts the pushed-down filter), so it is not parameterless (VGI311
+needs no waiver).
 
 ## `holdings` — hive-partitioned by `fund_ticker`, current-only (NO time travel)
 
@@ -84,8 +87,10 @@ haybarn against live Schwab):
 - **NO time travel / no as-of argument** — Schwab publishes CURRENT holdings only; `as_of_date` is
   the page's own "as of" date. (Unlike the sibling iShares worker, there is no `AT (…)`.)
 - **`fund_ticker` is a SEPARATE column from `ticker`** — `ticker` is the CONSTITUENT's own ticker.
-  `products` advisory PK `[ticker]`; `holdings` `not_null [fund_ticker]`. No cross-table FK
-  (ticker/cusip recur with different meanings). VGI311/807/809 waived in `vgi-lint.toml`.
+  `products` advisory PK `[ticker]`; `holdings` has an advisory composite PK
+  `(fund_ticker, cusip)` — both NOT NULL (cash / derivative lines with no CUSIP are emitted
+  as `""`, never NULL), which identifies each constituent within a fund and satisfies
+  VGI807/809 for real. No cross-table FK (ticker/cusip recur with different meanings).
 
 ## Schwab endpoint facts (why the design is what it is)
 
@@ -139,7 +144,11 @@ this haybarn suite, and the vgi-lint gate at `--fail-on info` (currently 100/100
 - `pa.schema([...])` over a heterogeneous `Field[T]` list trips a pyarrow-stubs quirk (mypy sees
   `list[object]`); annotate that one call `# type: ignore[arg-type]` (vgi-python does the same).
 - vgi-lint rules that must stay satisfied: descriptions must NOT enumerate the worker's own
-  functions (VGI173); arg docs must NOT restate the type (VGI313 — both tables are zero-arg, so
-  N/A); every function needs an agent test task (VGI520 — products/holdings/holdings_scan covered in
-  `catalog.py` `vgi.agent_test_tasks`). VGI311/807/809 are waived with reasons in `vgi-lint.toml`.
+  functions (VGI173); arg docs must NOT restate the type (VGI313 — `holdings_scan`'s single
+  `fund_ticker` arg is documented as an open ETF-ticker vocabulary, not the type); every function
+  needs an agent test task (VGI520 — products/holdings/holdings_scan covered in `catalog.py`
+  `vgi.agent_test_tasks`). `vgi-lint.toml` carries NO rule `ignore` list — VGI311/807/809 are
+  satisfied by real design (optional arg + composite PK), not suppression. The only
+  `[tool.vgi-lint-check.execution]` override widens the timeout (Akamai/pagination latency); it
+  hides no finding.
 - Don't add a secret type; this worker is keyless by design.

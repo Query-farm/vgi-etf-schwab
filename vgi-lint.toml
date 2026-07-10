@@ -1,16 +1,18 @@
 [tool.vgi-lint-check]
 select = ["ALL"]
-# VGI311 (parameterless-table-function): waived for `holdings_scan`. It is the backing scan for
-# the `holdings` base table and MUST be a LISTED, parameterless table function so the DuckDB vgi
-# extension can discover its filter_pushdown capability and push the `fund_ticker` partition
-# filter into the table scan (verified in the sibling worker: unlisted → no pushdown). The
-# user-facing surface is the `holdings` table; holdings_scan is intentionally exposed too.
-# VGI807 (table-has-primary-key) / VGI809 (shared key-shaped column): waived. Funds are keyed by
-# their exchange `ticker` (the natural identifier); Schwab's holdings pages carry no stable
-# per-fund numeric key. The identifier columns (ticker/cusip) legitimately recur across products &
-# holdings with different meanings (fund vs constituent), so a cross-table FK would be wrong.
-ignore = ["VGI311", "VGI807", "VGI809"]
 fail_on = "info"
 
 [tool.vgi-lint-check.options]
 column_comment_min_ratio = 0.8
+
+[tool.vgi-lint-check.execution]
+# The `holdings` scan fetches a full fund's holdings pages LIVE from Schwab (through the
+# curl_cffi Chrome-TLS transport that clears Akamai) before emitting the first partition
+# batch, so the VGI911 `SELECT * FROM holdings LIMIT 10` probe legitimately needs more than
+# the default 10s scan window — a fund can span several paginated requests. This widens the
+# window only (it hides no finding); concurrency=1 keeps the probe gentle on Akamai (a burst
+# of parallel requests draws a 403). CI runs the lint gate with --no-execute and covers live
+# execution in the separate haybarn e2e job, so this affects only local `--execute` runs.
+scan_timeout = 120
+timeout = 120
+concurrency = 1

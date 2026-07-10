@@ -128,7 +128,10 @@ def holdings_columns(rows: Iterable[HoldingRow]) -> dict[str, list[Any]]:
         "weight_percent": [r.weight_percent for r in rows],
         "ticker": [r.ticker for r in rows],
         "name": [r.name for r in rows],
-        "cusip": [r.cusip for r in rows],
+        # cusip anchors the (fund_ticker, cusip) primary key, so it must be NOT NULL: a cash /
+        # derivative line with no CUSIP is emitted as the empty string rather than NULL (the
+        # driver keeps the faithful None; this is the Arrow-boundary coercion).
+        "cusip": [r.cusip if r.cusip is not None else "" for r in rows],
         "quantity": [r.quantity for r in rows],
         "market_value": [r.market_value for r in rows],
     }

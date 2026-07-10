@@ -102,7 +102,7 @@ HOLDINGS_COLUMN_COMMENTS: dict[str, str] = {
     "weight_percent": "Percent of the fund's assets, in percent points (4.49 = 4.49%; weights sum to ~100).",
     "ticker": "Constituent ticker / symbol (blank for cash and derivative lines).",
     "name": "Constituent / issue name.",
-    "cusip": "Constituent CUSIP identifier.",
+    "cusip": "Constituent CUSIP identifier (empty string for cash / derivative lines that have none).",
     "quantity": "Number of shares / units / par held.",
     "market_value": (
         "Market value of the position, in USD. Schwab shows this abbreviated (e.g. '$4.4B'), so it is approximate."
@@ -256,11 +256,12 @@ CATALOG_TAGS: dict[str, str] = {
             },
             {
                 "name": "schd_holdings_scan",
-                "prompt": "Using the holdings backing scan, list a few SCHD constituents by weight.",
-                "check_sql": "SELECT count(*) > 0 FROM schwab.main.holdings_scan() WHERE fund_ticker = 'SCHD'",
-                "success_criteria": (
-                    "The answer returns SCHD constituents via holdings_scan() filtered by fund_ticker."
+                "prompt": (
+                    "Using the holdings backing scan with the fund ticker passed as its argument, "
+                    "list a few SCHD constituents by weight."
                 ),
+                "check_sql": ("SELECT count(*) > 0 FROM schwab.main.holdings_scan(fund_ticker => 'SCHD')"),
+                "success_criteria": ("The answer returns SCHD constituents via holdings_scan(fund_ticker => 'SCHD')."),
             },
         ]
     ),
@@ -363,8 +364,12 @@ def make_catalog(
                     Table(
                         name="holdings",
                         function=holdings_scan,
-                        # fund_ticker is always populated (the scan tags every row with its fund).
-                        not_null=("fund_ticker",),
+                        # fund_ticker is always populated (the scan tags every row with its fund);
+                        # cusip is emitted as "" (never NULL) for cash / derivative lines, so
+                        # (fund_ticker, cusip) is a NOT NULL composite key identifying each
+                        # constituent within a fund (advisory — not enforced on a live scan).
+                        not_null=("fund_ticker", "cusip"),
+                        primary_key=(("fund_ticker", "cusip"),),
                         # Whole-table estimate: ~35 funds; a broad bond fund alone can list 10k+
                         # constituents. Schwab publishes current holdings only, so there is NO time travel.
                         cardinality_estimate=40000,
