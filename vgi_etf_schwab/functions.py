@@ -24,6 +24,7 @@ how the pure driver is injected). All keyless.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Annotated, ClassVar
 
@@ -105,8 +106,37 @@ _HOLDINGS_SCAN_DESCS = {
     "market_value": "Market value of the position, in USD (abbreviated on the page, so approximate).",
 }
 
+# Example queries for holdings_scan. Shared between the native ``Meta.examples`` carrier
+# (duckdb_functions().examples) and the ``vgi.example_queries`` tag below — the native
+# carrier drops the description, so the tag re-supplies the {description, sql} pairs
+# byte-identically (VGI515).
+_HOLDINGS_SCAN_EXAMPLES: list[dict[str, str]] = [
+    {
+        "description": "Top 10 holdings of SCHD, passing the fund ticker as the argument",
+        "sql": (
+            "SELECT name, weight_percent FROM schwab.main.holdings_scan(fund_ticker => 'SCHD') "
+            "ORDER BY weight_percent DESC LIMIT 10"
+        ),
+    },
+    {
+        "description": "Same, via a pushed-down fund_ticker filter (no argument)",
+        "sql": (
+            "SELECT name, weight_percent FROM schwab.main.holdings_scan() "
+            "WHERE fund_ticker = 'SCHD' ORDER BY weight_percent DESC LIMIT 10"
+        ),
+    },
+    {
+        "description": "Two partitions at once (fan-out)",
+        "sql": (
+            "SELECT fund_ticker, count(*) FROM schwab.main.holdings_scan() "
+            "WHERE fund_ticker IN ('SCHD', 'SCHF') GROUP BY fund_ticker"
+        ),
+    },
+]
+
 _HOLDINGS_SCAN_TAGS = {
     "vgi.category": "holdings",
+    "vgi.example_queries": json.dumps(_HOLDINGS_SCAN_EXAMPLES),
     "vgi.doc_llm": (
         "The backing scan for the `holdings` table. Prefer querying the `holdings` table. "
         "Hive-partitioned by fund_ticker (the fund's ticker, distinct from the constituent "
@@ -213,29 +243,7 @@ def make_holdings_scan(get: Getter) -> type[TableFunctionGenerator[_HoldingsArgs
             filter_pushdown = True
             partition_kind = PartitionKind.SINGLE_VALUE_PARTITIONS
             max_workers = HOLDINGS_MAX_WORKERS
-            examples = [
-                FunctionExample(
-                    sql=(
-                        "SELECT name, weight_percent FROM schwab.main.holdings_scan(fund_ticker => 'SCHD') "
-                        "ORDER BY weight_percent DESC LIMIT 10"
-                    ),
-                    description="Top 10 holdings of SCHD, passing the fund ticker as the argument",
-                ),
-                FunctionExample(
-                    sql=(
-                        "SELECT name, weight_percent FROM schwab.main.holdings_scan() "
-                        "WHERE fund_ticker = 'SCHD' ORDER BY weight_percent DESC LIMIT 10"
-                    ),
-                    description="Same, via a pushed-down fund_ticker filter (no argument)",
-                ),
-                FunctionExample(
-                    sql=(
-                        "SELECT fund_ticker, count(*) FROM schwab.main.holdings_scan() "
-                        "WHERE fund_ticker IN ('SCHD', 'SCHF') GROUP BY fund_ticker"
-                    ),
-                    description="Two partitions at once (fan-out)",
-                ),
-            ]
+            examples = [FunctionExample(sql=ex["sql"], description=ex["description"]) for ex in _HOLDINGS_SCAN_EXAMPLES]
             tags = _HOLDINGS_SCAN_TAGS
 
         @classmethod

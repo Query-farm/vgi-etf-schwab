@@ -158,6 +158,14 @@ HOLDINGS_TABLE_TAGS: dict[str, str] = {
                     "WHERE fund_ticker IN ('SCHD', 'SCHF')"
                 ),
             },
+            {
+                "description": "Join holdings to the catalog for fund-level facts (name + expense ratio)",
+                "sql": (
+                    "SELECT p.fund_name, p.expense_ratio_percent, h.name, h.weight_percent "
+                    "FROM schwab.main.holdings h JOIN schwab.main.products p ON h.fund_ticker = p.ticker "
+                    "WHERE h.fund_ticker = 'SCHD' ORDER BY h.weight_percent DESC LIMIT 10"
+                ),
+            },
         ]
     ),
 }
