@@ -1,6 +1,6 @@
 [project]
 name = "vgi-etf-schwab"
-version = "0.1.2"
+version = "0.1.3"
 description = "Schwab Asset Management US ETF data (catalog + holdings) as DuckDB tables over VGI, in-process via curl_cffi"
 readme = "README.md"
 keywords = ["duckdb", "vgi", "etf", "schwab", "holdings", "apache-arrow", "pyarrow", "finance"]
