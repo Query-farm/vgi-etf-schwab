@@ -228,38 +228,24 @@ CATALOG_TAGS: dict[str, str] = {
             },
         ]
     ),
-    # Agent-suitability suite (catalog only). Each task carries a deterministic check_sql;
-    # reference_sql is deliberately omitted (live data). One task per callable surface
+    # Agent-suitability suite (catalog only). Only name/prompt are published here (VGI416);
+    # each task's deterministic check_sql + success_criteria live in vgi-agent-tests.yaml
+    # (reference_sql is deliberately omitted: live data). One task per callable surface
     # (products, holdings, holdings_scan) satisfies VGI520.
     "vgi.agent_test_tasks": json.dumps(
         [
             {
                 "name": "schd_exists",
                 "prompt": "Does Schwab offer an ETF with the ticker SCHD, and what is it called?",
-                "check_sql": "SELECT count(*) > 0 FROM schwab.main.products WHERE ticker = 'SCHD'",
-                "success_criteria": (
-                    "The answer confirms SCHD is the Schwab U.S. Dividend Equity ETF, found via the products table."
-                ),
             },
             {
                 "name": "schd_expense_ratio",
                 "prompt": "What is the expense ratio of the Schwab U.S. Dividend Equity ETF (SCHD)?",
-                "check_sql": (
-                    "SELECT count(*) > 0 FROM schwab.main.products WHERE ticker = 'SCHD' "
-                    "AND expense_ratio_percent IS NOT NULL"
-                ),
-                "success_criteria": (
-                    "The answer reports SCHD's expense ratio (a small percentage) from the products table."
-                ),
             },
             {
                 "name": "schd_top_holding",
                 "prompt": (
                     "What is the single largest holding of the Schwab U.S. Dividend Equity ETF (SCHD) right now?"
-                ),
-                "check_sql": "SELECT count(*) > 0 FROM schwab.main.holdings WHERE fund_ticker = 'SCHD'",
-                "success_criteria": (
-                    "The answer names SCHD's top holding by weight, obtained from the holdings table."
                 ),
             },
             {
@@ -268,8 +254,6 @@ CATALOG_TAGS: dict[str, str] = {
                     "Using the holdings backing scan with the fund ticker passed as its argument, "
                     "list a few SCHD constituents by weight."
                 ),
-                "check_sql": ("SELECT count(*) > 0 FROM schwab.main.holdings_scan(fund_ticker => 'SCHD')"),
-                "success_criteria": ("The answer returns SCHD constituents via holdings_scan(fund_ticker => 'SCHD')."),
             },
         ]
     ),
@@ -348,7 +332,7 @@ def make_catalog(
         tags=CATALOG_TAGS,
         schemas=[
             Schema(
-                name="main",
+                path=["main"],
                 comment="Schwab fund data: the ETF catalog and detailed current holdings.",
                 tags=SCHEMA_TAGS,
                 # holdings_scan is LISTED so the extension can push fund_ticker into the table.
