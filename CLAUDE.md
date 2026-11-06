@@ -87,10 +87,12 @@ haybarn against live Schwab):
 - **NO time travel / no as-of argument** — Schwab publishes CURRENT holdings only; `as_of_date` is
   the page's own "as of" date. (Unlike the sibling iShares worker, there is no `AT (…)`.)
 - **`fund_ticker` is a SEPARATE column from `ticker`** — `ticker` is the CONSTITUENT's own ticker.
-  `products` advisory PK `[ticker]`; `holdings` has an advisory composite PK
-  `(fund_ticker, cusip)` — both NOT NULL (cash / derivative lines with no CUSIP are emitted
-  as `""`, never NULL), which identifies each constituent within a fund and satisfies
-  VGI807/809 for real. No cross-table FK (ticker/cusip recur with different meanings).
+  `products` has a PK `[ticker]`. `holdings` has NOT NULL records on `fund_ticker` and `cusip`
+  (cash / derivative lines with no CUSIP are emitted as `""`, never NULL) but NO primary key:
+  under vgi.v3 every declared key is ENFORCED/ALL_ROWS and DuckDB trusts it, and Schwab lists
+  some CUSIPs more than once per fund under different as-of dates (SCHZ, 2026-11-06), so
+  `(fund_ticker, cusip)` is not a real key. No cross-table FK (ticker/cusip recur with
+  different meanings).
 
 ## Schwab endpoint facts (why the design is what it is)
 
@@ -147,8 +149,9 @@ this haybarn suite, and the vgi-lint gate at `--fail-on info` (currently 100/100
   functions (VGI173); arg docs must NOT restate the type (VGI313 — `holdings_scan`'s single
   `fund_ticker` arg is documented as an open ETF-ticker vocabulary, not the type); every function
   needs an agent test task (VGI520 — products/holdings/holdings_scan covered in `catalog.py`
-  `vgi.agent_test_tasks`). `vgi-lint.toml` carries NO rule `ignore` list — VGI311/807/809 are
-  satisfied by real design (optional arg + composite PK), not suppression. The only
+  `vgi.agent_test_tasks`). `vgi-lint.toml` carries NO catalog-wide `ignore` list — VGI311/809
+  are satisfied by real design. The one waiver is VGI807 scoped to `schwab.main.holdings`
+  (no reliable row identity, see above), recorded with its reason. The
   `[tool.vgi-lint-check.execution]` override widens the timeout (Akamai/pagination latency); it
   hides no finding.
 - Don't add a secret type; this worker is keyless by design.
