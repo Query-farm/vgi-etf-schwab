@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from vgi.catalog import Catalog, Schema, Table
+from vgi.catalog import Catalog, ConstraintInfo, Schema, Table, constraint_record
 from vgi.table_function import TableFunctionGenerator
 
 from vgi_etf_schwab.schema import (
@@ -302,6 +302,26 @@ SCHEMA_TAGS: dict[str, str] = {
 }
 
 
+def _trusted(table: str, constraint_id: str, kind: str, columns: list[list[str]]) -> ConstraintInfo:
+    """Build an ENFORCED/ALL_ROWS constraint record for a table in the ``main`` schema.
+
+    DuckDB only reads trusted (ENFORCED + ALL_ROWS) records under vgi.v3; declare one
+    only when every row the table can return satisfies it.
+
+    Args:
+        table: Table name the record belongs to.
+        constraint_id: Identifier unique within the table.
+        kind: Constraint kind (``PRIMARY_KEY``, ``NOT_NULL``, ...).
+        columns: Column paths the constraint covers, e.g. ``[["ticker"]]``.
+
+    Returns:
+        The canonical constraint record.
+    """
+    return constraint_record(
+        ["main"], table, constraint_id, kind, columns, enforcement="ENFORCED", validation="ALL_ROWS"
+    )
+
+
 def make_catalog(
     products_scan: type[TableFunctionGenerator[Any, Any]],
     holdings_scan: type[TableFunctionGenerator[Any, Any]],
@@ -341,8 +361,8 @@ def make_catalog(
                     Table(
                         name="products",
                         function=products_scan,
-                        # Each fund is keyed by its exchange ticker (advisory — not enforced on scan).
-                        primary_key=(("ticker",),),
+                        # Each fund is keyed by its exchange ticker.
+                        constraints=(_trusted("products", "pk", "PRIMARY_KEY", [["ticker"]]),),
                         # The Schwab US ETF lineup is ~35 funds; headroom to ~80.
                         cardinality_estimate=35,
                         cardinality_max=80,
@@ -356,12 +376,15 @@ def make_catalog(
                     Table(
                         name="holdings",
                         function=holdings_scan,
-                        # fund_ticker is always populated (the scan tags every row with its fund);
-                        # cusip is emitted as "" (never NULL) for cash / derivative lines, so
-                        # (fund_ticker, cusip) is a NOT NULL composite key identifying each
-                        # constituent within a fund (advisory — not enforced on a live scan).
-                        not_null=("fund_ticker", "cusip"),
-                        primary_key=(("fund_ticker", "cusip"),),
+                        # fund_ticker is always populated (the scan tags every row with its fund) and
+                        # cusip is emitted as "" (never NULL) for cash / derivative lines, so both are
+                        # NOT NULL. (fund_ticker, cusip) is NOT declared a primary key: vgi.v3 makes
+                        # DuckDB trust it, and Schwab's feed can list one CUSIP more than once per fund
+                        # under different as-of dates (seen live on SCHZ, 2026-11-06).
+                        constraints=(
+                            _trusted("holdings", "fund_ticker_not_null", "NOT_NULL", [["fund_ticker"]]),
+                            _trusted("holdings", "cusip_not_null", "NOT_NULL", [["cusip"]]),
+                        ),
                         # Whole-table estimate: ~35 funds; a broad bond fund alone can list 10k+
                         # constituents. Schwab publishes current holdings only, so there is NO time travel.
                         cardinality_estimate=40000,

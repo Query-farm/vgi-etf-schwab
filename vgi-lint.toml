@@ -14,3 +14,13 @@ fail_on = "info"
 scan_timeout = 120
 timeout = 120
 concurrency = 1
+
+# holdings has no primary key. Under vgi.v3 DuckDB trusts every declared key (only
+# ENFORCED + ALL_ROWS records are accepted), and Schwab's feed can list one CUSIP more than
+# once per fund under different as-of dates (seen live on SCHZ, 2026-11-06), so the old
+# advisory (fund_ticker, cusip) key would be a false claim. fund_ticker and cusip keep their
+# NOT NULL records; only VGI807 is waived, and only for this table.
+[tool.vgi-lint-check.per_object."schwab.main.holdings"]
+ignore = [
+    { code = "VGI807", kind = "domain-exemption", reason = "Schwab holdings have no reliable row identity: one CUSIP can appear more than once per fund under different as-of dates, and vgi.v3 makes DuckDB trust any declared key." },
+]

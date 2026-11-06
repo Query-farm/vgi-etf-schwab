@@ -88,7 +88,7 @@ uv run mypy vgi_etf_schwab/
 Metadata-quality gate (deterministic, no network):
 
 ```bash
-uvx --prerelease allow --from vgi-lint-check vgi-lint bin/vgi-etf-schwab-worker --fail-on info --no-execute
+uvx --prerelease allow --from 'vgi-lint-check>=2.0.1,<3' vgi-lint bin/vgi-etf-schwab-worker --fail-on info --no-execute
 ```
 
 ## Layout

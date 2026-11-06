@@ -63,10 +63,13 @@ jobs:
         run: uv sync --extra dev
       - name: Install the haybarn unittest runner
         run: |
-          uv tool install 'haybarn-unittest<2'
+          # haybarn 2.0 is required: its community `vgi` extension is the one that speaks
+          # the worker's VGI protocol (vgi.v3 / 3.1). haybarn 2.0 is RC-only, hence
+          # --prerelease allow.
+          uv tool install --prerelease allow 'haybarn-unittest>=2.0.0rc11,<2.1'
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Install the vgi community extension
-        run: echo "INSTALL vgi FROM community;" | uvx --from 'haybarn-cli<2' haybarn-cli
+        run: echo "INSTALL vgi FROM community;" | uvx --prerelease allow --from 'haybarn-cli>=2.0.0rc11,<2.1' haybarn-cli
       - name: Run SQLLogic suite against the worker
         run: ./run_tests.sh
 
@@ -87,6 +90,6 @@ jobs:
         run: uv sync --extra dev
       - name: vgi-lint
         run: >
-          uvx --prerelease allow --from vgi-lint-check vgi-lint
+          uvx --prerelease allow --from 'vgi-lint-check>=2.0.1,<3' vgi-lint
           "${{ github.workspace }}/bin/vgi-etf-schwab-worker"
           --fail-on info --no-execute

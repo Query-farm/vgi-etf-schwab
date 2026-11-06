@@ -126,7 +126,7 @@ uv sync --extra dev   # install (vgi-python from ../vgi-python via tool.uv.sourc
 uv run pytest -q      # unit tests: SDK-free driver + Arrow batch builders (injected fakes, no network)
 uv run ruff check . && uv run ruff format --check . && uv run mypy vgi_etf_schwab/
 ./run_tests.sh        # haybarn SQLLogic E2E: worker under real DuckDB + community vgi ext (hits Schwab live)
-uvx --prerelease allow --from vgi-lint-check vgi-lint bin/vgi-etf-schwab-worker --fail-on info --no-execute
+uvx --prerelease allow --from 'vgi-lint-check>=2.0.1,<3' vgi-lint bin/vgi-etf-schwab-worker --fail-on info --no-execute
 ```
 
 `run_tests.sh` sets `VGI_TEST_WORKER=bin/vgi-etf-schwab-worker` + `VGI_WORKER_CATALOG_NAME=schwab`

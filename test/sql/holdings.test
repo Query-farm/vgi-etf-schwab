@@ -5,7 +5,7 @@
 require-env VGI_TEST_WORKER
 
 statement ok
-ATTACH 'schwab' AS sch (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+ATTACH 'schwab' AS sch (TYPE vgi, LOCATION '{VGI_TEST_WORKER}');
 
 statement ok
 SET search_path='sch.main';
