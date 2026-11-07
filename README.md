@@ -9,8 +9,8 @@ Schwab Asset Management US ETF data as DuckDB tables, over [VGI](https://github.
   (constituent name/ticker/CUSIP, weight %, quantity, market value). Schwab publishes
   **current holdings only**, so there is no historical/time-travel coordinate.
 
-This is a Python VGI worker (built on `vgi-python`). It is distributed on **PyPI** — not as a
-compiled binary.
+This is a Python VGI worker (built on `vgi-python`). It runs with `uvx` straight from a tagged
+GitHub release, or from the published container image — not as a compiled binary.
 
 ## The Akamai wall → in-process `curl_cffi`
 
@@ -29,51 +29,57 @@ Three keyless plain-text planes back the reads:
 | `GET /products/{ticker}` | per-fund facts (the "fund facts" table) for `products` |
 | `GET /allholdings/{TICKER}` | per-fund paginated holdings for `holdings` |
 
-## Use from DuckDB
+## Quick start
+
+The worker isn't on PyPI; [uv](https://docs.astral.sh/uv/) runs it straight from a tagged release on GitHub. `uvx` builds an isolated environment on the first ATTACH and reuses it afterwards:
 
 ```sql
+INSTALL vgi FROM community;
 LOAD vgi;
-ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION '/path/to/vgi-etf-schwab/bin/vgi-etf-schwab-worker');
 
--- The ETF catalog (a base table — no arguments; filter with WHERE):
-SELECT ticker, fund_name, net_assets FROM schwab.main.products ORDER BY net_assets DESC LIMIT 10;
+ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'uvx --from git+https://github.com/Query-farm/vgi-etf-schwab@v0.2.0 vgi-etf-schwab-worker');
 
--- One fund's current holdings (the fund_ticker filter is pushed into the scan):
-SELECT name, ticker, weight_percent
-FROM schwab.main.holdings WHERE fund_ticker = 'SCHD'
-ORDER BY weight_percent DESC LIMIT 10;
+-- The largest Schwab ETFs by net assets
+SELECT ticker, fund_name, net_assets FROM schwab.main.products ORDER BY net_assets DESC LIMIT 5;
 
--- Two funds at once (partition fan-out); an unfiltered scan streams every fund:
-SELECT fund_ticker, name, weight_percent FROM schwab.main.holdings WHERE fund_ticker IN ('SCHD','SCHF');
+-- The top holdings of the Schwab U.S. Dividend Equity ETF
+SELECT name, ticker, weight_percent FROM schwab.main.holdings WHERE fund_ticker = 'SCHD' ORDER BY weight_percent DESC LIMIT 5;
 ```
 
 `percent` columns (`expense_ratio_percent`, `weight_percent`, …) hold **percent points**
 (`0.06` = 0.06%, `4.49` = 4.49%). `market_value` is abbreviated on Schwab's page (`$4.4B`), so it
-is approximate.
+is approximate. The `fund_ticker` filter on `holdings` is pushed into the scan; an `IN (...)` list
+fans out across partitions, and an unfiltered scan streams every fund. No credentials are needed.
 
-## Run as a container
+Change `@v0.2.0` to move to a newer release.
 
-A multi-arch (linux/amd64 + linux/arm64), cosign-signed image is published to
-`ghcr.io/query-farm/vgi-etf-schwab` on every release — no local Python or `uv` needed. Attach it
-directly over the VGI container transport:
+### Other ways to run it
 
-```sql
-LOAD vgi;
-ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'oci://ghcr.io/query-farm/vgi-etf-schwab:latest');
-```
+- **Docker** (the image bundles the worker and its dependencies; multi-arch linux/amd64 +
+  linux/arm64, cosign-signed, published to `ghcr.io/query-farm/vgi-etf-schwab` on every release —
+  no local Python or `uv` needed):
 
-Or run the HTTP transport yourself and attach that:
+  ```sql
+  ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-etf-schwab:0.2.0');
+  ```
 
-```bash
-docker run --rm -p 8000:8000 ghcr.io/query-farm/vgi-etf-schwab:latest   # serves /health + the VGI RPC on :8000
-```
+- **Over HTTP**: run the image's HTTP transport yourself and attach that:
 
-```sql
-LOAD vgi;
-ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'http://localhost:8000');
-```
+  ```bash
+  docker run --rm -p 8000:8000 ghcr.io/query-farm/vgi-etf-schwab:0.2.0   # serves /health + the VGI RPC on :8000
+  ```
 
-`:latest` always tracks the newest release.
+  ```sql
+  ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'http://localhost:8000');
+  ```
+
+  `:latest` always tracks the newest release.
+
+- **From a local checkout** (`git clone https://github.com/Query-farm/vgi-etf-schwab`), point `LOCATION` at `uv run --project /path/to/vgi-etf-schwab vgi-etf-schwab-worker`.
+
+### Build from source
+
+To build and test the worker yourself, see [Development](#development).
 
 ## Development
 
