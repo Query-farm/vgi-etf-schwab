@@ -174,6 +174,7 @@ HOLDINGS_TABLE_TAGS: dict[str, str] = {
 
 CATALOG_TAGS: dict[str, str] = {
     "vgi.title": "Schwab Asset Management ETFs",
+    "vgi.subtitle": "Schwab ETF lineup key facts and current fund holdings as SQL tables.",
     "vgi.doc_llm": (
         "Schwab Asset Management US ETF data as SQL tables. Reach for it to screen the Schwab ETF "
         "lineup on key facts (net assets, expense ratio, tracked index, category), and to inspect "
