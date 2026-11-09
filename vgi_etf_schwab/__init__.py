@@ -8,4 +8,4 @@ fingerprint, so the network layer uses ``curl_cffi`` in-process (see
 and SDK-free so it can be unit-tested against injected fakes.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
