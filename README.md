@@ -37,7 +37,7 @@ The worker isn't on PyPI; [uv](https://docs.astral.sh/uv/) runs it straight from
 INSTALL vgi FROM community;
 LOAD vgi;
 
-ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'uvx --from git+https://github.com/Query-farm/vgi-etf-schwab@v0.2.0 vgi-etf-schwab-worker');
+ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'uvx --from git+https://github.com/Query-farm/vgi-etf-schwab@v0.3.0 vgi-etf-schwab-worker');
 
 -- The largest Schwab ETFs by net assets
 SELECT ticker, fund_name, net_assets FROM schwab.main.products ORDER BY net_assets DESC LIMIT 5;
@@ -51,7 +51,7 @@ SELECT name, ticker, weight_percent FROM schwab.main.holdings WHERE fund_ticker 
 is approximate. The `fund_ticker` filter on `holdings` is pushed into the scan; an `IN (...)` list
 fans out across partitions, and an unfiltered scan streams every fund. No credentials are needed.
 
-Change `@v0.2.0` to move to a newer release.
+Change `@v0.3.0` to move to a newer release.
 
 ### Other ways to run it
 
@@ -60,13 +60,13 @@ Change `@v0.2.0` to move to a newer release.
   no local Python or `uv` needed):
 
   ```sql
-  ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-etf-schwab:0.2.0');
+  ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-etf-schwab:0.3.0');
   ```
 
 - **Over HTTP**: run the image's HTTP transport yourself and attach that:
 
   ```bash
-  docker run --rm -p 8000:8000 ghcr.io/query-farm/vgi-etf-schwab:0.2.0   # serves /health + the VGI RPC on :8000
+  docker run --rm -p 8000:8000 ghcr.io/query-farm/vgi-etf-schwab:0.3.0   # serves /health + the VGI RPC on :8000
   ```
 
   ```sql
