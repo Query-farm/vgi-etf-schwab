@@ -14,7 +14,7 @@
 #   uv sync --extra dev                                   # the worker's Python environment
 #
 # haybarn 2.0 is required: its community `vgi` extension is the one that speaks the worker's
-# VGI protocol (vgi.v3 / 3.2).
+# VGI protocol (vgi.v3 / 3.3).
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
