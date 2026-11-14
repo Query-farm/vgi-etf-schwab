@@ -66,3 +66,14 @@ def test_resolve_fund_matches_universe_case_insensitively() -> None:
     assert schwab.resolve_fund(fake.get, "schd") == "SCHD"
     assert schwab.resolve_fund(fake.get, "NOPE") is None
     assert schwab.resolve_fund(fake.get, "") is None
+
+
+def test_parse_product_title_without_ticker_and_bare_expense_label() -> None:
+    # Live regressions (2026-11-13): SMBS/SCIN titles omit the leading ticker
+    # ("Fund Name | Schwab Asset Management") and were named "Schwab Asset Management";
+    # SCHH labels its expense row "Expense Ratio" (no "Total") and came back NULL.
+    html = product_html(SCHD_FUND).replace("<title>SCHD | ", "<title>").replace("Total Expense Ratio", "Expense Ratio")
+    p = schwab.parse_product(html, "SCHD")
+    assert p is not None
+    assert p.fund_name == "Schwab U.S. Dividend Equity ETF"
+    assert p.expense_ratio_percent == 0.06

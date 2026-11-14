@@ -14,3 +14,26 @@ tasks:
   - name: schd_holdings_scan
     check_sql: "SELECT count(*) > 0 FROM schwab.main.holdings_scan(fund_ticker => 'SCHD')"
     success_criteria: "The answer returns SCHD constituents via holdings_scan(fund_ticker => 'SCHD')."
+  # Composed (holdings x products): the agent saves its answer in largest_position; the
+  # check_sql recomputes the live truth, so a wrong fund/ticker or a value off by more than
+  # 3% fails. Tickers are compared with punctuation stripped (BRK/B = BRK.B = BRKB).
+  - name: largest_position_value
+    check_sql: >-
+      WITH truth AS (
+        SELECT h.fund_ticker, regexp_replace(upper(h.ticker), '[^A-Z0-9]', '', 'g') AS ticker,
+               p.net_assets * h.weight_percent / 100 AS est_value_usd
+        FROM schwab.main.holdings h JOIN schwab.main.products p ON p.ticker = h.fund_ticker
+        WHERE h.fund_ticker IN ('SCHD', 'SCHG', 'SCHV')
+        QUALIFY row_number() OVER (PARTITION BY h.fund_ticker ORDER BY h.weight_percent DESC NULLS LAST) = 1
+      )
+      SELECT (SELECT count(*) FROM truth) = 3
+      AND (SELECT count(*) FROM largest_position) = 3
+      AND NOT EXISTS (
+        SELECT 1 FROM truth t
+        LEFT JOIN largest_position a
+          ON upper(trim(a.fund_ticker)) = t.fund_ticker
+          AND regexp_replace(upper(a.ticker), '[^A-Z0-9]', '', 'g') = t.ticker
+          AND abs(a.est_value_usd - t.est_value_usd) <= 0.03 * t.est_value_usd
+        WHERE a.fund_ticker IS NULL
+      )
+    success_criteria: "The answer gives each fund's (SCHD, SCHG, SCHV) largest holding and its estimated dollar value (net assets x weight) from the products and holdings tables, saved in largest_position."

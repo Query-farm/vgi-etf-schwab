@@ -44,12 +44,25 @@ SELECT ticker, fund_name, net_assets FROM schwab.main.products ORDER BY net_asse
 
 -- The top holdings of the Schwab U.S. Dividend Equity ETF
 SELECT name, ticker, weight_percent FROM schwab.main.holdings WHERE fund_ticker = 'SCHD' ORDER BY weight_percent DESC LIMIT 5;
+
+-- Combine the tables: how concentrated each large-cap fund is (share in its top 10 positions) vs what it costs
+WITH ranked AS (
+    SELECT fund_ticker, weight_percent,
+           row_number() OVER (PARTITION BY fund_ticker ORDER BY weight_percent DESC) AS rn
+    FROM schwab.main.holdings WHERE fund_ticker IN ('SCHD', 'SCHG', 'SCHV', 'SCHX')
+)
+SELECT p.ticker, p.fund_name, p.expense_ratio_percent, count(*) AS num_positions,
+       round(sum(r.weight_percent) FILTER (WHERE r.rn <= 10), 2) AS top10_weight_percent
+FROM ranked r JOIN schwab.main.products p ON p.ticker = r.fund_ticker
+GROUP BY ALL ORDER BY top10_weight_percent DESC;
 ```
 
 `percent` columns (`expense_ratio_percent`, `weight_percent`, …) hold **percent points**
 (`0.06` = 0.06%, `4.49` = 4.49%). `market_value` is abbreviated on Schwab's page (`$4.4B`), so it
 is approximate. The `fund_ticker` filter on `holdings` is pushed into the scan; an `IN (...)` list
-fans out across partitions, and an unfiltered scan streams every fund. No credentials are needed.
+fans out across partitions, and an unfiltered scan streams every fund. Name the funds literally
+when joining `holdings` to `products`: the filter is pushed down only as a literal `=` / `IN (...)`
+list, not through the join or an `IN (SELECT ...)` subquery. No credentials are needed.
 
 Change `@v0.4.0` to move to a newer release.
 

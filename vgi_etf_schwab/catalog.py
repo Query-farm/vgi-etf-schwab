@@ -23,6 +23,58 @@ from vgi_etf_schwab.schema import (
 REPO = "https://github.com/Query-farm/vgi-etf-schwab"
 ISSUES = f"{REPO}/issues"
 
+# -- composed examples (holdings x products, holdings x holdings) -------------------
+# Each is defined once and referenced from both the holdings table's example list (within
+# its first five, which agents are shown) and the schema-level list. Every query names the
+# funds literally: the fund_ticker filter is pushed into the holdings scan only for a
+# literal equality / IN list, NOT through a join to products or an IN (SELECT ...) subquery
+# (those stream every fund's holdings first).
+
+COMPOSED_CONCENTRATION: dict[str, str] = {
+    "description": (
+        "Concentration vs cost: the share of each large-cap fund's assets in its 10 largest "
+        "positions, beside its position count and expense ratio from the catalog"
+    ),
+    "sql": (
+        "WITH ranked AS (SELECT fund_ticker, weight_percent, row_number() OVER (PARTITION BY fund_ticker "
+        "ORDER BY weight_percent DESC) AS rn FROM schwab.main.holdings "
+        "WHERE fund_ticker IN ('SCHD', 'SCHG', 'SCHV', 'SCHX')) "
+        "SELECT p.ticker, p.fund_name, p.expense_ratio_percent, count(*) AS num_positions, "
+        "round(sum(r.weight_percent) FILTER (WHERE r.rn <= 10), 2) AS top10_weight_percent "
+        "FROM ranked r JOIN schwab.main.products p ON p.ticker = r.fund_ticker "
+        "GROUP BY ALL ORDER BY top10_weight_percent DESC"
+    ),
+}
+
+COMPOSED_OVERLAP: dict[str, str] = {
+    "description": (
+        "Fund overlap: how many of the growth ETF SCHG's positions the broad large-cap ETF SCHX also "
+        "holds, and the overlapping weight (sum of the smaller of the two weights per shared CUSIP)"
+    ),
+    "sql": (
+        "SELECT count(*) AS shared_positions, "
+        "round(sum(least(g.weight_percent, x.weight_percent)), 2) AS overlap_weight_percent "
+        "FROM schwab.main.holdings g JOIN schwab.main.holdings x ON g.cusip = x.cusip "
+        "WHERE g.fund_ticker = 'SCHG' AND x.fund_ticker = 'SCHX' AND g.cusip <> ''"
+    ),
+}
+
+COMPOSED_LOOK_THROUGH: dict[str, str] = {
+    "description": (
+        "Look-through exposure: the 10 stocks SCHD, SCHG, SCHV and SCHX together hold the most "
+        "dollars of, estimated as each fund's net assets times the holding's weight"
+    ),
+    "sql": (
+        "SELECT h.ticker, any_value(h.name) AS name, count(*) AS funds, "
+        "round(sum(p.net_assets * h.weight_percent / 100) / 1e9, 2) AS est_value_usd_bn "
+        "FROM schwab.main.holdings h JOIN schwab.main.products p ON p.ticker = h.fund_ticker "
+        "WHERE h.fund_ticker IN ('SCHD', 'SCHG', 'SCHV', 'SCHX') AND h.ticker <> '' "
+        "GROUP BY h.ticker ORDER BY est_value_usd_bn DESC LIMIT 10"
+    ),
+}
+
+COMPOSED_EXAMPLES: list[dict[str, str]] = [COMPOSED_CONCENTRATION, COMPOSED_OVERLAP, COMPOSED_LOOK_THROUGH]
+
 # -- products -----------------------------------------------------------------------
 
 PRODUCTS_COLUMN_COMMENTS: dict[str, str] = {
@@ -122,7 +174,10 @@ HOLDINGS_TABLE_TAGS: dict[str, str] = {
         "historical as-of date; as_of_date is the published page's own date. Rows come back "
         "weight-descending; weight_percent is in percent points (4.49 = 4.49%). market_value is "
         "abbreviated on the page so it is approximate. Join on fund_ticker to products.ticker for "
-        "fund-level facts."
+        "fund-level facts (e.g. net_assets × weight_percent / 100 estimates a position's dollars), but "
+        "name the funds literally on holdings: the fund_ticker filter is pushed down only as a literal "
+        "= / IN list, not through a join to products or an IN (SELECT …) subquery, which would stream "
+        "every fund first."
     ),
     "vgi.doc_md": (
         "## holdings\n\n"
@@ -144,6 +199,7 @@ HOLDINGS_TABLE_TAGS: dict[str, str] = {
                     "WHERE fund_ticker = 'SCHD' ORDER BY weight_percent DESC LIMIT 10"
                 ),
             },
+            *COMPOSED_EXAMPLES,
             {
                 "description": "The largest positions of the International Equity ETF",
                 "sql": (
@@ -250,6 +306,16 @@ CATALOG_TAGS: dict[str, str] = {
                 ),
             },
             {
+                "name": "largest_position_value",
+                "prompt": (
+                    "For each of the Schwab ETFs SCHD, SCHG and SCHV, find its single largest holding by "
+                    "weight and estimate that position's dollar value as the fund's total net assets times "
+                    "the holding's weight. Save the answer as a table named largest_position with columns "
+                    "fund_ticker VARCHAR, ticker VARCHAR (the holding's ticker) and est_value_usd DOUBLE "
+                    "(in US dollars), one row per fund."
+                ),
+            },
+            {
                 "name": "schd_holdings_scan",
                 "prompt": (
                     "Using the holdings backing scan with the fund ticker passed as its argument, "
@@ -298,6 +364,7 @@ SCHEMA_TAGS: dict[str, str] = {
                     "WHERE fund_ticker = 'SCHD' ORDER BY weight_percent DESC LIMIT 10"
                 ),
             },
+            *COMPOSED_EXAMPLES,
         ]
     ),
 }

@@ -121,7 +121,8 @@ def parse_abbrev_money(v: object) -> float | None:
     except ValueError:
         return None
     suffix = (m.group(2) or "").upper()
-    return n * _ABBREV_MULT[suffix] if suffix else n
+    # Round off binary-float noise ($4.1B must be 4100000000.0, not 4099999999.9999995).
+    return round(n * _ABBREV_MULT[suffix], 2) if suffix else n
 
 
 # -- HTML text helpers ------------------------------------------------------------
@@ -271,6 +272,26 @@ _AS_OF_LABEL_RE = re.compile(r"\bAs of\s+([\d/]+)", re.IGNORECASE)
 _AS_OF_STRIP_RE = re.compile(r"\s*As of\s+[\d/]+.*$", re.IGNORECASE)
 
 
+_SITE_SUFFIX = "schwab asset management"
+
+
+def _fund_name_from_title(html: str, ticker: str) -> str | None:
+    """Read the fund name from the page ``<title>``.
+
+    Most titles are ``TICKER | Fund Name | Schwab Asset Management``, but some newer funds
+    omit the ticker (``Fund Name | Schwab Asset Management``, e.g. SMBS / SCIN), so the name
+    is the first segment that is neither the ticker nor the site suffix — never the suffix.
+    """
+    title_m = _TITLE_RE.search(html)
+    if not title_m:
+        return None
+    want = ticker.strip().upper()
+    for part in (p.strip() for p in html_to_text(title_m.group(1)).split("|")):
+        if part and part.upper() != want and part.lower() != _SITE_SUFFIX:
+            return part
+    return None
+
+
 def parse_product(html: str, ticker: str) -> ProductRow | None:
     """Parse a fund's product page into a :class:`ProductRow`, or ``None`` for a non-ETF page.
 
@@ -306,12 +327,7 @@ def parse_product(html: str, ticker: str) -> ProductRow | None:
         entry = facts.get(label)
         return entry[1] if entry is not None else None
 
-    fund_name: str | None = None
-    title_m = _TITLE_RE.search(html)
-    if title_m:
-        parts = [p.strip() for p in html_to_text(title_m.group(1)).split("|")]
-        if len(parts) >= 2:
-            fund_name = parts[1] or None
+    fund_name = _fund_name_from_title(html, ticker)
 
     return ProductRow(
         ticker=ticker.strip().upper(),
@@ -325,7 +341,8 @@ def parse_product(html: str, ticker: str) -> ProductRow | None:
         as_of_date=fact_as_of("Total Net Assets") or fact_as_of("NAV"),
         net_assets=_as_num(fact("Total Net Assets")),
         nav=_as_num(fact("NAV")),
-        expense_ratio_percent=_as_num(fact("Total Expense Ratio")),
+        # Most pages say "Total Expense Ratio"; a few (e.g. SCHH) label it just "Expense Ratio".
+        expense_ratio_percent=_as_num(fact("Total Expense Ratio") or fact("Expense Ratio")),
         portfolio_turnover_percent=_as_num(fact("Portfolio Turnover Rate")),
         shares_outstanding=_as_num(fact("Shares Outstanding")),
         num_holdings=_as_num(fact("Total Holdings")),

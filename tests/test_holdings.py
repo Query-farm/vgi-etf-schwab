@@ -79,3 +79,11 @@ def test_page_count() -> None:
     assert schwab.page_count(100) == 1
     assert schwab.page_count(101) == 2
     assert schwab.page_count(1498) == 15
+
+
+def test_parse_abbrev_money_has_no_float_noise() -> None:
+    # 4.1 * 1e9 is 4099999999.9999995 in binary floating point; the parsed value is exact.
+    assert schwab.parse_abbrev_money("$4.1B") == 4_100_000_000.0
+    assert schwab.parse_abbrev_money("$871.2M") == 871_200_000.0
+    assert schwab.parse_abbrev_money("$12.5K") == 12_500.0
+    assert schwab.parse_abbrev_money("$950") == 950.0

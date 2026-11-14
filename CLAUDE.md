@@ -81,7 +81,9 @@ haybarn against live Schwab):
   `params.storage.queue_push`es one item per fund. `process()` `queue_pop`s one fund per tick,
   fetches its holdings, and `out.emit`s a single partition batch. `max_workers` (`HOLDINGS_MAX_WORKERS`,
   4 — kept modest to stay gentle on Akamai) drains the same queue → work-stealing fan-out.
-  `LIMIT` short-circuits the stream.
+  `LIMIT` short-circuits the stream. The filter reaches `on_init` ONLY as a literal `=`/`IN`
+  list: a join to `products` or `IN (SELECT …)` is NOT pushed down (verified 2026-11-13 — it
+  streams every fund, >10 min), so composed examples name the funds literally.
 - **`Meta.filter_pushdown = True`** + LISTED → the extension pushes the `fund_ticker` filter into
   the scan. Empty/skipped funds (a non-ETF slug or empty page) are popped-and-skipped in a loop.
 - **NO time travel / no as-of argument** — Schwab publishes CURRENT holdings only; `as_of_date` is
@@ -103,8 +105,11 @@ Three keyless plain-text (Drupal HTML/XML) planes, all needing only the Chrome T
    5), upper-cased, minus a few section slugs. A superset — non-ETF candidates are dropped later.
 2. **`/products/{ticker}`** → per-fund FACTS. `parse_product` finds the one `<table>` carrying both
    "CUSIP" and "Total Net Assets"; each row is `<th>Label</th> … <td>Value</td>` (value = last td;
-   an "As of …" date may ride in the label). Fund name from the `<title>`
-   (`TICKER | Fund Name | Schwab Asset Management`). No facts table → `None` (dropped).
+   an "As of …" date may ride in the label; the expense row is "Total Expense Ratio" on most
+   pages but plain "Expense Ratio" on some, e.g. SCHH). Fund name from the `<title>`
+   (`TICKER | Fund Name | Schwab Asset Management`, but some titles omit the ticker, e.g.
+   SMBS/SCIN — take the first segment that is neither the ticker nor the site suffix).
+   No facts table → `None` (dropped).
 3. **`/allholdings/{TICKER}`** → per-fund paginated HOLDINGS. `parse_holdings_page` finds the table
    whose header carries "% of Assets" (header-driven so a reordered column set still binds), reads
    the "As of MM/DD/YY" date and the "Displaying x - y of N" total, and pages via `?page=N`.
