@@ -1,0 +1,93 @@
+{
+  "source": "Schwab Asset Management official current holdings pages",
+  "records": [
+    {
+      "file": "SCHD.html",
+      "url": "https://www.schwabassetmanagement.com/allholdings/SCHD",
+      "captured_at_utc": "2026-11-14T06:55:09.989757+00:00",
+      "sha256": "4869b3043db071860bee4609db1ea4d883caf7d102706cdb48c1809a001f4495",
+      "original_body_sha256": "4869b3043db071860bee4609db1ea4d883caf7d102706cdb48c1809a001f4495",
+      "bytes": 446304,
+      "encoding": "decoded response text saved as UTF-8",
+      "parsed_rows": 100,
+      "advertised_total": 102.0
+    },
+    {
+      "file": "SCHD-1.html",
+      "url": "https://www.schwabassetmanagement.com/allholdings/SCHD?page=1",
+      "captured_at_utc": "2026-11-14T06:55:10.168969+00:00",
+      "sha256": "a3a184e043e4fef4858271220f7f26129e6e3455fe2452b400e45c1543257e63",
+      "original_body_sha256": "a3a184e043e4fef4858271220f7f26129e6e3455fe2452b400e45c1543257e63",
+      "bytes": 93259,
+      "encoding": "decoded response text saved as UTF-8",
+      "parsed_rows": 2,
+      "advertised_total": 102.0
+    },
+    {
+      "file": "SCHV.html",
+      "url": "https://www.schwabassetmanagement.com/allholdings/SCHV",
+      "captured_at_utc": "2026-11-14T06:55:10.286036+00:00",
+      "sha256": "493befd16dd2c8b891b7a71bb7864e169ba2e2000ce56db7c3faf2c92f0f10b0",
+      "original_body_sha256": "493befd16dd2c8b891b7a71bb7864e169ba2e2000ce56db7c3faf2c92f0f10b0",
+      "bytes": 446484,
+      "encoding": "decoded response text saved as UTF-8",
+      "parsed_rows": 100,
+      "advertised_total": 568.0
+    },
+    {
+      "file": "SCHV-1.html",
+      "url": "https://www.schwabassetmanagement.com/allholdings/SCHV?page=1",
+      "captured_at_utc": "2026-11-14T06:55:12.005483+00:00",
+      "sha256": "cb058f7129587277a2e70008ffcc4f32359f5087df88747418970a09e03094ec",
+      "original_body_sha256": "cb058f7129587277a2e70008ffcc4f32359f5087df88747418970a09e03094ec",
+      "bytes": 447166,
+      "encoding": "decoded response text saved as UTF-8",
+      "parsed_rows": 100,
+      "advertised_total": 568.0
+    },
+    {
+      "file": "SCHV-2.html",
+      "url": "https://www.schwabassetmanagement.com/allholdings/SCHV?page=2",
+      "captured_at_utc": "2026-11-14T06:55:12.320635+00:00",
+      "sha256": "737c157488251d74b3604db954d32cf7ca880a7e381389bc4eb2318388e873fa",
+      "original_body_sha256": "737c157488251d74b3604db954d32cf7ca880a7e381389bc4eb2318388e873fa",
+      "bytes": 446898,
+      "encoding": "decoded response text saved as UTF-8",
+      "parsed_rows": 100,
+      "advertised_total": 568.0
+    },
+    {
+      "file": "SCHV-3.html",
+      "url": "https://www.schwabassetmanagement.com/allholdings/SCHV?page=3",
+      "captured_at_utc": "2026-11-14T06:55:12.577980+00:00",
+      "sha256": "d02eae34db16f7c8a6a17a89b3f20442197dea1c29a75704248228a388265171",
+      "original_body_sha256": "d02eae34db16f7c8a6a17a89b3f20442197dea1c29a75704248228a388265171",
+      "bytes": 447142,
+      "encoding": "decoded response text saved as UTF-8",
+      "parsed_rows": 100,
+      "advertised_total": 568.0
+    },
+    {
+      "file": "SCHV-4.html",
+      "url": "https://www.schwabassetmanagement.com/allholdings/SCHV?page=4",
+      "captured_at_utc": "2026-11-14T06:55:12.797323+00:00",
+      "sha256": "3dc5c1aaac3858be1531ef768ba04eb610a39f113e1d0443ffa440ac65c40469",
+      "original_body_sha256": "3dc5c1aaac3858be1531ef768ba04eb610a39f113e1d0443ffa440ac65c40469",
+      "bytes": 446942,
+      "encoding": "decoded response text saved as UTF-8",
+      "parsed_rows": 100,
+      "advertised_total": 568.0
+    },
+    {
+      "file": "SCHV-5.html",
+      "url": "https://www.schwabassetmanagement.com/allholdings/SCHV?page=5",
+      "captured_at_utc": "2026-11-14T06:55:12.984332+00:00",
+      "sha256": "c3191d3c4485e311e69e63be3a1105a5bd7dfd9e53fa62c1092eee7c53fa0866",
+      "original_body_sha256": "c3191d3c4485e311e69e63be3a1105a5bd7dfd9e53fa62c1092eee7c53fa0866",
+      "bytes": 331673,
+      "encoding": "decoded response text saved as UTF-8",
+      "parsed_rows": 68,
+      "advertised_total": 568.0
+    }
+  ]
+}

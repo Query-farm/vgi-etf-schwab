@@ -125,3 +125,7 @@ uvx --prerelease allow --from 'vgi-lint-check>=2.0.1,<3' vgi-lint bin/vgi-etf-sc
 
 Data is Schwab's public fund website: best-effort, for informational use. Review Schwab's terms
 before redistribution.
+
+## Executed notebook
+
+Explore [CUSIP overlap, shared weights and pagination checks](notebooks/README.md) with recorded and live holdings.
