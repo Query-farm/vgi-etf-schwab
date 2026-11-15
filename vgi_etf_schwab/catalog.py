@@ -237,6 +237,7 @@ CATALOG_TAGS: dict[str, str] = {
         "what a fund currently holds. The central concept is the fund, identified by its exchange "
         "ticker (e.g. SCHD); start from the catalog to find that key, then drill into a specific "
         "fund's holdings. Data is Schwab's public fund website: best-effort, for informational use."
+        " Upstream source: https://www.schwabassetmanagement.com/products/etfs."
     ),
     "vgi.doc_md": (
         "## Schwab Asset Management ETFs\n\n"
@@ -244,6 +245,12 @@ CATALOG_TAGS: dict[str, str] = {
         "The **fund** is the unit of the data and is keyed by an exchange `ticker` (e.g. `SCHD`) — "
         "begin at the catalog to discover that key, then drill into a fund's holdings. Holdings are "
         "the current published portfolio (Schwab does not publish historical holdings).\n\n"
+        "### Sources\n\n"
+        "- [Schwab Asset Management ETFs](https://www.schwabassetmanagement.com/products/etfs)"
+        " — the Schwab ETF lineup.\n"
+        "- [Example fund page (SCHD)](https://www.schwabassetmanagement.com/products/schd)"
+        " — a fund page with the fund facts and holdings exposed here.\n"
+        "\n"
         "Data is provided for informational use; review Schwab's terms before redistribution."
     ),
     "vgi.keywords": json.dumps(

@@ -1002,7 +1002,7 @@ wheels = [
 
 [[package]]
 name = "vgi-etf-schwab"
-version = "0.4.0"
+version = "0.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "curl-cffi" },
