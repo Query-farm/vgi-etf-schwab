@@ -12,9 +12,11 @@ TOOLS            := $(CURDIR)/.tools
 HAYBARN_UNITTEST := $(TOOLS)/bin/haybarn-unittest
 WORKER           := $(CURDIR)/.venv/bin/vgi-etf-schwab-worker
 TRANSPORTS       ?= stdio launch http
+# test/sql/live.test hits Schwab and is gated on VGI_SCHWAB_LIVE (make test-live).
+export EXPECTED_SKIP_REASONS := require-env VGI_SCHWAB_LIVE
 
 .DEFAULT_GOAL := help
-.PHONY: help build tools test test-unit test-sql lint check
+.PHONY: help build tools test test-unit test-sql test-live lint check
 
 help: ## List the targets
 	@awk 'BEGIN{FS=":.*## "} /^[a-zA-Z_-]+:.*## /{printf "  %-10s %s\n",$$1,$$2}' $(MAKEFILE_LIST)
@@ -34,7 +36,10 @@ test-sql: build tools ## SQL tests through DuckDB over stdio, launch and http
 	  WORKER=$(WORKER) HAYBARN_UNITTEST=$(HAYBARN_UNITTEST) TRANSPORT=$$t PYTHON="uv run --no-project python" ci/run-integration.sh; \
 	done
 
-test: test-unit test-sql ## Unit + SQL tests
+test-live: build tools ## Live Schwab checks too (test/sql/live.test), over stdio
+	VGI_SCHWAB_LIVE=1 WORKER=$(WORKER) HAYBARN_UNITTEST=$(HAYBARN_UNITTEST) TRANSPORT=stdio ci/run-integration.sh
+
+test: test-unit test-sql ## Unit + SQL tests (offline)
 
 lint: build ## Static checks (mirrors CI's lint job)
 	uv run ruff format --check .

@@ -1,5 +1,5 @@
 # name: test/sql/holdings.test
-# description: schwab.holdings base table — fund_ticker partition (pushdown), current holdings only.
+# description: schwab.holdings base table — fund_ticker partition (pushdown), current holdings only (network-free; live checks are in live.test).
 # group: [sql]
 
 require-env VGI_TEST_WORKER
@@ -21,31 +21,3 @@ query T
 SELECT column_type FROM (DESCRIBE SELECT * FROM sch.holdings WHERE fund_ticker = 'SCHD') WHERE column_name = 'as_of_date';
 ----
 DATE
-
-# --- Live invariants (hit Schwab through the impersonation transport). ---
-
-# Partition pushdown: WHERE fund_ticker = 'SCHD' fetches that fund's holdings, weight-descending.
-query I
-SELECT (count(*) > 20 AND max(weight_percent) > 0 AND bool_and(fund_ticker = 'SCHD'))::INT
-FROM sch.holdings WHERE fund_ticker = 'SCHD';
-----
-1
-
-# Multiple partitions at once: fund_ticker IN (...) fans out to two funds.
-query I
-SELECT (count(DISTINCT fund_ticker) = 2)::INT FROM sch.holdings WHERE fund_ticker IN ('SCHD', 'SCHF');
-----
-1
-
-# An unfiltered scan is allowed — it streams EVERY fund's holdings (one partition per fund).
-# LIMIT short-circuits the stream after the first partition, so this stays cheap.
-query I
-SELECT (count(*) >= 1)::INT FROM (SELECT * FROM sch.holdings LIMIT 5);
-----
-1
-
-# The backing scan function also works directly (pushdown).
-query I
-SELECT (count(*) > 20)::INT FROM sch.holdings_scan() WHERE fund_ticker = 'SCHD';
-----
-1

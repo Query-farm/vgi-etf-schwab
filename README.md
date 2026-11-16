@@ -101,7 +101,8 @@ uv sync --extra dev          # install the environment (vgi-python + curl_cffi +
 uv run pytest -q             # unit tests: SDK-free driver + Arrow batch builders (injected fakes, no network)
 uv run ruff check . && uv run ruff format --check .
 uv run mypy vgi_etf_schwab/
-make test-sql                # haybarn SQLLogic E2E over stdio, launch, http: the worker under real DuckDB + the community vgi extension (hits Schwab live)
+make test-sql                # haybarn SQLLogic E2E over stdio, launch, http: the worker under real DuckDB + the community vgi extension (offline)
+make test-live               # also test/sql/live.test, which hits Schwab (VGI_SCHWAB_LIVE=1)
 ```
 
 Metadata-quality gate (deterministic, no network):

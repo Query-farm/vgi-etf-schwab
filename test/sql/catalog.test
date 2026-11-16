@@ -1,0 +1,27 @@
+# name: test/sql/catalog.test
+# description: offline catalog surface — attach, table/function listing, bind-time argument checks.
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+ATTACH 'schwab' AS sch (TYPE vgi, LOCATION '{VGI_TEST_WORKER}');
+
+# Both base tables are listed (catalog metadata only; no network).
+query T
+SELECT string_agg(table_name, ',' ORDER BY table_name) FROM duckdb_tables() WHERE database_name = 'sch';
+----
+holdings,products
+
+# The holdings table's backing scan function is registered.
+query I
+SELECT count(*) > 0 FROM duckdb_functions()
+WHERE database_name = 'sch' AND function_name = 'holdings_scan';
+----
+true
+
+# Unknown columns fail at bind time, before any fetch.
+statement error
+SELECT no_such_column FROM sch.products;
+----
+no_such_column

@@ -1,5 +1,5 @@
 # name: test/sql/products.test
-# description: schwab.products — base table: typed schema (network-free) + live catalog invariants.
+# description: schwab.products — base table: typed schema (network-free; live checks are in live.test).
 # group: [sql]
 
 require-env VGI_TEST_WORKER
@@ -37,24 +37,3 @@ query T
 SELECT column_type FROM (DESCRIBE SELECT * FROM sch.products) WHERE column_name = 'num_holdings';
 ----
 BIGINT
-
-# --- Live invariants: these hit Schwab (through the impersonation transport). Assert shape, not
-# --- exact (moving) values.
-
-# The catalog has the Schwab ETF lineup; filter with WHERE.
-query I
-SELECT (count(*) > 10)::INT FROM sch.products;
-----
-1
-
-# SCHD (U.S. Dividend Equity ETF) is present with a non-negative expense ratio.
-query I
-SELECT (count(*) = 1)::INT FROM sch.products WHERE ticker = 'SCHD' AND expense_ratio_percent >= 0;
-----
-1
-
-# Fund names are populated for the lineup (from each fund's product page).
-query I
-SELECT (count(*) >= 1)::INT FROM sch.products WHERE fund_name IS NOT NULL;
-----
-1

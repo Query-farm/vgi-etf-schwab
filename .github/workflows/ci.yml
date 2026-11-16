@@ -8,6 +8,9 @@ on:
     branches: [main]
     paths-ignore: ['README.md']
   workflow_dispatch:
+  # Weekly run of the live Schwab checks (the `live` job).
+  schedule:
+    - cron: "17 6 * * 1"
   # Allow release.yml to gate on this exact suite before publishing.
   workflow_call:
 
@@ -50,7 +53,8 @@ jobs:
   # adapted from the vgi-starters template). `launch` starts the worker once on a
   # unix socket and pools connections. Bind-time schema asserts are deterministic;
   # the live-invariant asserts hit Schwab through curl_cffi's Chrome TLS
-  # impersonation, so network is expected.
+  # impersonation; they live in test/sql/live.test, gated on VGI_SCHWAB_LIVE, and run
+  # only in the `live` job below, so this matrix is deterministic.
   e2e:
     name: SQL tests (${{ matrix.os }}, ${{ matrix.transport }})
     runs-on: ${{ matrix.os }}
@@ -84,7 +88,39 @@ jobs:
         run: |
           export WORKER="$PWD/.venv/bin/vgi-etf-schwab-worker"
           export HAYBARN_UNITTEST="$PWD/.tools/bin/haybarn-unittest"
+          export EXPECTED_SKIP_REASONS="require-env VGI_SCHWAB_LIVE"
           TRANSPORT=${{ matrix.transport }} PYTHON="uv run --no-project python" ci/run-integration.sh
+
+  # Live Schwab checks (test/sql/live.test): weekly and on manual dispatch of this
+  # workflow only, never on push/PR or when release.yml calls it, since Schwab's bot
+  # protection can block a runner and that must not red the normal gate.
+  live:
+    name: SQL tests, live Schwab (stdio)
+    if: github.workflow == 'CI' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      UV_PYTHON: "3.14"
+      HAYBARN_VERSION: "2.0.0rc11"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Build the worker
+        run: uv sync --locked --all-extras
+
+      - name: Install the SQL test runner
+        run: |
+          uv venv .tools
+          uv pip install -p .tools "haybarn-unittest==${HAYBARN_VERSION}"
+
+      - name: Run test/sql including live.test
+        run: |
+          export WORKER="$PWD/.venv/bin/vgi-etf-schwab-worker"
+          export HAYBARN_UNITTEST="$PWD/.tools/bin/haybarn-unittest"
+          VGI_SCHWAB_LIVE=1 TRANSPORT=stdio ci/run-integration.sh
 
   # Metadata-quality gate (vgi-lint): scores the worker's catalog/schema/function docs,
   # tags, categories, per-arg docs, and examples. --no-execute keeps it deterministic —
