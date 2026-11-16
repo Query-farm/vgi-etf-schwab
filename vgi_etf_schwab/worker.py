@@ -36,8 +36,8 @@ class SchwabWorker(Worker):
 
 
 def main() -> None:
-    """Run the Schwab worker over stdio (Arrow IPC on stdin/stdout)."""
-    SchwabWorker().run()
+    """Run the Schwab worker: stdio by default, ``--http`` for HTTP (and the launcher modes)."""
+    SchwabWorker.main()
 
 
 if __name__ == "__main__":

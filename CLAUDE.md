@@ -132,12 +132,12 @@ stays a clean Arrow IPC stream. No network happens at import (schema derivation 
 uv sync --extra dev   # install (vgi-python from ../vgi-python via tool.uv.sources; curl_cffi + pyarrow)
 uv run pytest -q      # unit tests: SDK-free driver + Arrow batch builders (injected fakes, no network)
 uv run ruff check . && uv run ruff format --check . && uv run mypy vgi_etf_schwab/
-./run_tests.sh        # haybarn SQLLogic E2E: worker under real DuckDB + community vgi ext (hits Schwab live)
+make test-sql        # haybarn SQLLogic E2E over stdio, launch, http: worker under real DuckDB + community vgi ext (hits Schwab live)
 uvx --prerelease allow --from 'vgi-lint-check>=2.0.1,<3' vgi-lint bin/vgi-etf-schwab-worker --fail-on info --no-execute
 ```
 
-`run_tests.sh` sets `VGI_TEST_WORKER=bin/vgi-etf-schwab-worker` + `VGI_WORKER_CATALOG_NAME=schwab`
-and runs `test/sql/*.test` (DESCRIBE schema asserts, bind-only → deterministic; plus a few
+`make test-sql` (`ci/run-integration.sh`, adapted from the vgi-starters template) sets
+`VGI_TEST_WORKER` per transport + `VGI_WORKER_CATALOG_NAME=schwab` and runs `test/sql/*.test` (DESCRIBE schema asserts, bind-only → deterministic; plus a few
 live-invariant asserts that hit Schwab — fine for an egress connector). CI runs pytest/mypy/ruff,
 this haybarn suite, and the vgi-lint gate at `--fail-on info` (currently 100/100).
 

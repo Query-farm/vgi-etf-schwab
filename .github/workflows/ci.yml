@@ -45,33 +45,46 @@ jobs:
       - name: Tests
         run: uv run pytest -q
 
-  # SQLLogic (haybarn) E2E: the worker attached to a real DuckDB with the vgi extension
-  # from the community repository. Bind-time schema asserts are deterministic; the
-  # live-invariant asserts hit Schwab in-process through curl_cffi's Chrome TLS
-  # impersonation — an egress connector, so network is expected.
+  # SQL tests: test/sql/*.test through the published haybarn-unittest with the
+  # signed community `vgi` extension, over every transport (ci/run-integration.sh,
+  # adapted from the vgi-starters template). `launch` starts the worker once on a
+  # unix socket and pools connections. Bind-time schema asserts are deterministic;
+  # the live-invariant asserts hit Schwab through curl_cffi's Chrome TLS
+  # impersonation, so network is expected.
   e2e:
-    name: SQLLogic e2e (haybarn)
-    runs-on: ubuntu-latest
+    name: SQL tests (${{ matrix.os }}, ${{ matrix.transport }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        transport: [stdio, launch, http]
     env:
-      # uv otherwise picks the newest CPython (3.15), which lacks wheels for native deps.
       UV_PYTHON: "3.14"
+      HAYBARN_VERSION: "2.0.0rc11"
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
-      - name: Install worker environment
-        run: uv sync --extra dev
-      - name: Install the haybarn unittest runner
+
+      - name: Build the worker
+        run: uv sync --locked --all-extras
+
+      - name: Install the SQL test runner
         run: |
-          # haybarn 2.0 is required: its community `vgi` extension is the one that speaks
-          # the worker's VGI protocol (vgi.v3 / 3.1). haybarn 2.0 is RC-only, hence
-          # --prerelease allow.
-          uv tool install --prerelease allow 'haybarn-unittest>=2.0.0rc11,<2.1'
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Install the vgi community extension
-        run: echo "INSTALL vgi FROM community;" | uvx --prerelease allow --from 'haybarn-cli>=2.0.0rc11,<2.1' haybarn-cli
-      - name: Run SQLLogic suite against the worker
-        run: ./run_tests.sh
+          uv venv .tools
+          uv pip install -p .tools "haybarn-unittest==${HAYBARN_VERSION}"
+
+      - name: Run test/sql over ${{ matrix.transport }}
+        run: |
+          export WORKER="$PWD/.venv/bin/vgi-etf-schwab-worker"
+          export HAYBARN_UNITTEST="$PWD/.tools/bin/haybarn-unittest"
+          TRANSPORT=${{ matrix.transport }} PYTHON="uv run --no-project python" ci/run-integration.sh
 
   # Metadata-quality gate (vgi-lint): scores the worker's catalog/schema/function docs,
   # tags, categories, per-arg docs, and examples. --no-execute keeps it deterministic —
