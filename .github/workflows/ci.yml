@@ -27,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python-version: ["3.13", "3.14"]
+        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # uv otherwise picks the newest CPython (3.15), which lacks wheels for native deps.
-      UV_PYTHON: "3.13"
+      UV_PYTHON: "3.14"
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # uv otherwise picks the newest CPython (3.15), which lacks wheels for native deps.
-      UV_PYTHON: "3.13"
+      UV_PYTHON: "3.14"
     steps:
       - uses: actions/checkout@v4
       - name: Install uv

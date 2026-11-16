@@ -6,14 +6,13 @@ readme = "README.md"
 keywords = ["duckdb", "vgi", "etf", "schwab", "holdings", "apache-arrow", "pyarrow", "finance"]
 license = { file = "LICENSE" }
 authors = [{ name = "Query Farm LLC", email = "hello@query.farm" }]
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Database",
 ]
@@ -57,7 +56,7 @@ packages = ["vgi_etf_schwab"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py313"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "D"]
@@ -73,7 +72,7 @@ quote-style = "double"
 "tests/*" = ["D"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.14"
 strict = true
 warn_return_any = true
 warn_unused_ignores = true

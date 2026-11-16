@@ -6,7 +6,7 @@
 # See docker-entrypoint.sh. Keyless; the driver reaches Schwab in-process via curl_cffi
 # (Chrome TLS impersonation). No persistent state volume.
 # syntax=docker/dockerfile:1
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 ARG VERSION=0.0.0
 ARG GIT_COMMIT=unknown
