@@ -66,7 +66,7 @@ jobs:
         transport: [stdio, launch, http]
     env:
       UV_PYTHON: "3.14"
-      HAYBARN_VERSION: "2.0.0rc11"
+      HAYBARN_VERSION: "2.0.1rc3"
     defaults:
       run:
         shell: bash
@@ -101,7 +101,7 @@ jobs:
     timeout-minutes: 20
     env:
       UV_PYTHON: "3.14"
-      HAYBARN_VERSION: "2.0.0rc11"
+      HAYBARN_VERSION: "2.0.1rc3"
     steps:
       - uses: actions/checkout@v4
 
