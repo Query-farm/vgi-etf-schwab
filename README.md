@@ -33,11 +33,13 @@ Three keyless plain-text planes back the reads:
 
 The worker isn't on PyPI; [uv](https://docs.astral.sh/uv/) runs it straight from a tagged release on GitHub. `uvx` builds an isolated environment on the first ATTACH and reuses it afterwards:
 
+vgi-etf-schwab 0.5.0 speaks VGI protocol 3.4, so it needs Haybarn 2.0.1 or newer (Haybarn 2.0.0 loads a 3.3 `vgi` extension that cannot attach it).
+
 ```sql
 INSTALL vgi FROM community;
 LOAD vgi;
 
-ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'uvx --from git+https://github.com/Query-farm/vgi-etf-schwab@v0.4.2 vgi-etf-schwab-worker');
+ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'uvx --from git+https://github.com/Query-farm/vgi-etf-schwab@v0.5.0 vgi-etf-schwab-worker');
 
 -- The largest Schwab ETFs by net assets
 SELECT ticker, fund_name, net_assets FROM schwab.main.products ORDER BY net_assets DESC LIMIT 5;
@@ -64,7 +66,7 @@ fans out across partitions, and an unfiltered scan streams every fund. Name the 
 when joining `holdings` to `products`: the filter is pushed down only as a literal `=` / `IN (...)`
 list, not through the join or an `IN (SELECT ...)` subquery. No credentials are needed.
 
-Change `@v0.4.2` to move to a newer release.
+Change `@v0.5.0` to move to a newer release.
 
 ### Other ways to run it
 
@@ -73,13 +75,13 @@ Change `@v0.4.2` to move to a newer release.
   no local Python or `uv` needed):
 
   ```sql
-  ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-etf-schwab:0.4.2');
+  ATTACH 'schwab' AS schwab (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-etf-schwab:0.5.0');
   ```
 
 - **Over HTTP**: run the image's HTTP transport yourself and attach that:
 
   ```bash
-  docker run --rm -p 8000:8000 ghcr.io/query-farm/vgi-etf-schwab:0.4.2   # serves /health + the VGI RPC on :8000
+  docker run --rm -p 8000:8000 ghcr.io/query-farm/vgi-etf-schwab:0.5.0   # serves /health + the VGI RPC on :8000
   ```
 
   ```sql
